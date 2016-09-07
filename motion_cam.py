@@ -1,31 +1,28 @@
-import io
-import os
-import picamera
-import time
+import io, os, picamera, time, configparser
 from datetime import datetime
 from PIL import Image
 from time import sleep
+from ftplib import FTP
 
 camera = picamera.PiCamera()
 camera.rotation = 0
 # sets black/white pictures
 camera.color_effects= (128,128)  
 
-difference = 40
-pixels = 25
+config=configparser.ConfigParser()
+config.read('motion_config.txt')
 
-pic_width = 2592
-pic_height = 1944
-vid_width = 1024
-vid_height = 768
-vid_length=5
+difference =int(config['CAM']['difference'])
+pixels = int(config['CAM']['pixels'])
 
-def mylog(text):
-   logfile=open('/home/pi/share/motion_cam/motion_cam.log', 'a')
-   logfile.write('\n' + str(text))
-   os.fsync(logfile)
-   logfile.close()
+pic_width  = int(config['CAM']['pic_width'])
+pic_height = int(config['CAM']['pic_height'])
+vid_width  = int(config['CAM']['vid_width'])
+vid_height = int(config['CAM']['vid_height'])
+vid_length = int(config['CAM']['vid_length'])
 
+max_uploads=10
+uploads=1
 
 def mytimestamp():
    mytime=datetime.now()	
@@ -45,7 +42,7 @@ def compare():
 
 def newimage(pic_width, pic_height,changedpixels):
    mytime = mytimestamp()
-   filename = "motion_diff_pixels"+"_"+str(mytime)+"_"+str(difference)+"-"+str(pixels)+"_"+str(changedpixels)+".jpg"
+   filename = "mc_diff_pix"+"_"+str(mytime)+"_"+str(difference)+"-"+str(pixels)+"_"+str(changedpixels)+".jpg"
 #   filenamevid = "motion-%04d%02d%02d-%02d%02d%02d.h264" % (mytime.year, mytime.month, mytime.day, mytime.hour, mytime.minute, mytime.second)
    camera.resolution = (pic_width, pic_height)
    camera.capture('/home/pi/share/motion_cam/'+filename)
@@ -53,14 +50,14 @@ def newimage(pic_width, pic_height,changedpixels):
 #   camera.start_recording(filenamevid)
 #   time.sleep(vid_length)
 #   camera.stop_recording()
-   mylog(filename)
    myftp(filename)
 #   print "Captured %s" % filename
 
-def myftp(filename):
-    from ftplib import FTP
-    import configparser
 
+
+def myftp(filename):
+    global uploads
+    
     config=configparser.ConfigParser()
     config.read('motion_config.txt')
 
@@ -71,19 +68,20 @@ def myftp(filename):
     ftp=FTP(server,user=user,passwd=passwd)
     file=open(filename,'rb')
     ftp.cwd('www')
-    ftp.storbinary('STOR motion.jpg',file)
+    #ftp.storbinary('STOR motion.jpg',file)
+    ftp.storbinary('STOR motion_'+str(uploads)+'.jpg',file)
+    print(uploads)
+    uploads=uploads+1
+    if uploads>max_uploads:
+       uploads=1
     file.close()
     ftp.quit()
-
+    
 
 
 
 image1, buffer1 = compare()
 
-logfile=open('/home/pi/share/motion_cam/motion_cam.log', 'a')
-logfile.write('       '+str(mytimestamp())+': motion_cam started.\n')
-os.fsync(logfile)
-logfile.close()
 
 while (True):
 
@@ -101,11 +99,6 @@ while (True):
       newimage(pic_width, pic_height,changedpixels)
    elif mytime % (30*60)== 0:
       newimage(pic_width, pic_height,changedpixels)
-   elif mytime % (60)== 0:
-      logfile=open('/home/pi/share/motion_cam/motion_cam.log', 'a')
-      logfile.write('\t'+str(datetime.now().minute))
-      os.fsync(logfile)
-      logfile.close()
    image1 = image2
    buffer1 = buffer2
 
