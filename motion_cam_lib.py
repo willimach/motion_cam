@@ -6,9 +6,10 @@ def mytimestamp():
 
 def compare(camera):
    import io, os, picamera
-   from PIL import Image
+   from PIL import Image   
    stream = io.BytesIO()
-   camera.capture(stream, format = 'bmp') 
+   #use_video_port=True makes it way faster (but a bit blurrier?)
+   camera.capture(stream, format = 'bmp',use_video_port=True) #takes 0.6s (100%of time)
    stream.seek(0)
    im = Image.open(stream)
    buffer = im.load()
@@ -17,15 +18,17 @@ def compare(camera):
 
 
 def newimage(changedpixels,camera):
-   import motion_conf
-
+   import motion_conf,time
    mytime = mytimestamp()
    filename = "z_diff_pix"+"_"+str(mytime)+"_"+str(motion_conf.difference)+"-"+str(motion_conf.pixels)+"_"+str(changedpixels)+".jpg"
-   camera.resolution = (motion_conf.pic_width, motion_conf.pic_height)
-   camera.capture('/home/pi/share/motion_cam/'+filename)
-   camera.resolution = (motion_conf.pic_compare_width, motion_conf.pic_compare_height)
+   camera.annotate_text_size=70
+   camera.annotate_text = str(mytime)
+   
+   camera.resolution = (motion_conf.pic_width, motion_conf.pic_height) #takes 0.1s
+   camera.capture('/home/pi/share/motion_cam/'+filename,use_video_port=False) # takes 0.6s 
+   #use_video_port=True makes it way faster (but a bit blurrier?)
+   camera.resolution = (motion_conf.pic_compare_width, motion_conf.pic_compare_height) #takes 0.1s
    return filename
-#   print "Captured %s" % filename
    
    
 def newvid(changedpixels):
@@ -43,8 +46,10 @@ def newvid(changedpixels):
 
 def myftp(filename):
     from ftplib import FTP
-    import motion_conf
-
+    import motion_conf,os
+    
+    os.chdir(os.path.dirname(__file__))
+      
     ftp=FTP(motion_conf.server, user=motion_conf.user, passwd=motion_conf.passwd)
     file=open(filename,'rb')
     ftp.cwd('www')
